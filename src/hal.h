@@ -28,6 +28,7 @@ bool halBtnBWasPressed();
 bool halBtnAIsPressed();
 bool halBtnBIsPressed();
 int  halBatPercent();
+bool halIsCharging();
 void halSetBrightness(uint8_t level);
 void halFlush();
 void halClear(uint16_t color);

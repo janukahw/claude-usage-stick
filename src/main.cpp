@@ -15,6 +15,8 @@
 #include "provision.h"
 #include "api.h"
 #include "ui.h"
+#include "clawd.h"
+#include "usage_rate.h"
 
 static Preferences prefs;
 static char        token[256];
@@ -70,6 +72,7 @@ static void refresh() {
         prefs.end();
     }
     fetchUsage(token, usage);
+    if (usage.ok) usage_rate_sample(usage.h5);
     lastFetch = millis();
     uiDashboard(usage, lastFetch, WiFi.RSSI(), halBatPercent());
 }
@@ -78,6 +81,7 @@ static void refresh() {
 void setup() {
     halInit();
     uiInit();
+    clawd_init();
 
     uiBootProgress(10, "Initializing...");
     delay(300);
@@ -200,6 +204,8 @@ void loop() {
         uiDashboard(usage, lastFetch, WiFi.RSSI(), halBatPercent());
         lastRedraw = millis();
     }
+
+    uiDashboardAnim();
 
     delay(20);
 }

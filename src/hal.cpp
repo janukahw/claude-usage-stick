@@ -46,6 +46,8 @@ int halBatPercent() {
     return constrain((int)((v - 3.3f) / 0.85f * 100), 0, 100);
 }
 
+bool halIsCharging() { return false; }
+
 void halSetBrightness(uint8_t level) {
     static const uint8_t vals[] = {0, 60, 160, 255};
     ledcWrite(0, vals[level]);
@@ -111,6 +113,8 @@ int halBatPercent() {
     return constrain((int)((v - 3.3f) / 0.85f * 100), 0, 100);
 }
 
+bool halIsCharging() { return amoled.isCharging(); }
+
 void halSetBrightness(uint8_t level) {
     static const uint8_t vals[] = {0, 60, 160, 255};
     amoled.setBrightness(vals[level]);
@@ -165,6 +169,8 @@ void halSetBrightness(uint8_t level) {
     M5.Display.setBrightness(vals[level]);
 }
 
+bool halIsCharging() { return M5.Power.isCharging(); }
+
 void halFlush() {}
 
 void halClear(uint16_t color) { lcd.fillScreen(color); }
@@ -193,6 +199,8 @@ void halSetBrightness(uint8_t level) {
     static const uint8_t vals[] = {0, 30, 80, 160};
     M5.Axp.ScreenBreath(vals[level]);
 }
+
+bool halIsCharging() { return M5.Axp.GetIChargeData() > 0; }
 
 void halFlush() {}
 

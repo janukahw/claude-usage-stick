@@ -3,6 +3,11 @@
 #include "hal.h"
 #include <time.h>
 
+#ifdef BOARD_TDISPLAY_S3_AMOLED
+  #include "clawd.h"
+  #include "icons.h"
+#endif
+
 // ── Colors (RGB565) ──────────────────────────────────────
 #define C_BG      TFT_BLACK
 #define C_TEXT    TFT_WHITE
@@ -205,7 +210,113 @@ void uiConnecting(const char* ssid, int attempt) {
     halFlush();
 }
 
+#ifdef BOARD_TDISPLAY_S3_AMOLED
+
+// AMOLED layout: 240x240 Clawd canvas on the left, 296x240 data panel on the
+// right. Clawd auto-cycles animations within a usage-rate-driven group; data
+// panel is redrawn whenever new usage data arrives.
+static void uiDashboardAmoled(const UsageData& data, unsigned long lastFetchMs,
+                              int rssi, int batPct) {
+    const int RX  = 240;
+    const int RW  = SCREEN_W - RX;   // 296
+
+    halClear(C_BG);
+
+    // Title
+    lcd.setTextColor(C_HEAD, C_BG);
+    lcd.setTextSize(2);
+    lcd.setCursor(RX + 12, 10);
+    lcd.print("CLAUDE USAGE");
+
+    if (!data.ok) {
+        lcd.setTextColor(C_CRIT, C_BG);
+        lcd.setTextSize(4);
+        lcd.setCursor(RX + 12, 60);
+        lcd.print("ERROR");
+        lcd.setTextColor(C_DIM, C_BG);
+        lcd.setTextSize(1);
+        lcd.setCursor(RX + 12, 110);
+        lcd.print(data.error);
+        lcd.setCursor(RX + 12, 130);
+        lcd.print("Tap to retry");
+    } else {
+        char buf[24];
+
+        // 5-hour window
+        lcd.setTextColor(C_DIM, C_BG);
+        lcd.setTextSize(2);
+        lcd.setCursor(RX + 12, 44);
+        lcd.print("5H WINDOW");
+        snprintf(buf, sizeof(buf), "%d%%", (int)data.h5);
+        int w = strlen(buf) * 6 * 5;
+        lcd.setTextColor(C_TEXT, C_BG);
+        lcd.setTextSize(5);
+        lcd.setCursor(RX + RW - 12 - w, 38);
+        lcd.print(buf);
+
+        lcd.fillRect(RX + 12, 84, RW - 24, 8, C_BAR_BG);
+        int fw = constrain((int)((RW - 24) * data.h5 / 100.0f), 0, RW - 24);
+        if (fw > 0) lcd.fillRect(RX + 12, 84, fw, 8, C_ACCENT);
+
+        char h5rst[16];
+        fmtCountdown(data.h5ResetEpoch, h5rst, sizeof(h5rst));
+        lcd.setTextColor(C_DIM, C_BG);
+        lcd.setTextSize(1);
+        lcd.setCursor(RX + 12, 98);
+        lcd.printf("reset %s", h5rst);
+
+        // 7-day window
+        lcd.setTextColor(C_DIM, C_BG);
+        lcd.setTextSize(2);
+        lcd.setCursor(RX + 12, 128);
+        lcd.print("7D WINDOW");
+        snprintf(buf, sizeof(buf), "%d%%", (int)data.d7);
+        w = strlen(buf) * 6 * 5;
+        lcd.setTextColor(C_TEXT, C_BG);
+        lcd.setTextSize(5);
+        lcd.setCursor(RX + RW - 12 - w, 122);
+        lcd.print(buf);
+
+        lcd.fillRect(RX + 12, 168, RW - 24, 8, C_BAR_BG);
+        fw = constrain((int)((RW - 24) * data.d7 / 100.0f), 0, RW - 24);
+        if (fw > 0) lcd.fillRect(RX + 12, 168, fw, 8, C_ACCENT);
+
+        char d7rst[16];
+        fmtCountdown(data.d7ResetEpoch, d7rst, sizeof(d7rst));
+        lcd.setTextColor(C_DIM, C_BG);
+        lcd.setTextSize(1);
+        lcd.setCursor(RX + 12, 182);
+        lcd.printf("reset %s", d7rst);
+
+        // Footer: battery icon + % + signal + last-fetch age
+        drawBatteryIcon24(spr, RX + 8, 208, batteryIcon(batPct, halIsCharging()));
+        lcd.setTextColor(C_DIM, C_BG);
+        lcd.setTextSize(2);
+        lcd.setCursor(RX + 36, 215);
+        lcd.printf("%d%%", batPct);
+
+        unsigned long ago = (millis() - lastFetchMs) / 1000;
+        lcd.setTextSize(1);
+        lcd.setCursor(RX + 110, 215);
+        lcd.printf("%ddBm", rssi);
+        lcd.setCursor(RX + 110, 228);
+        lcd.printf("%lus ago", ago);
+    }
+
+    // Clawd canvas: 20x20 cells at cell=12 → 240x240, top-left.
+    clawd_draw(spr, 0, 0, 12);
+
+    halFlush();
+}
+
+#endif  // BOARD_TDISPLAY_S3_AMOLED
+
 void uiDashboard(const UsageData& data, unsigned long lastFetchMs, int rssi, int batPct) {
+#ifdef BOARD_TDISPLAY_S3_AMOLED
+    uiDashboardAmoled(data, lastFetchMs, rssi, batPct);
+    return;
+#endif
+
     halClear(C_BG);
 
     // Header
@@ -307,4 +418,12 @@ void uiLockout(int attempts, int maxAttempts, int lockoutSec) {
         halFlush();
         delay(1000);
     }
+}
+
+void uiDashboardAnim() {
+#ifdef BOARD_TDISPLAY_S3_AMOLED
+    if (!clawd_tick()) return;
+    clawd_draw(spr, 0, 0, 12);
+    halFlush();
+#endif
 }
