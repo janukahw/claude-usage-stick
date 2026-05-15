@@ -219,7 +219,7 @@ void loop() {
         lastRedraw = millis();
     }
 
-    uiDashboardAnim();
+    uiDashboardAnim(lastFetch);
 
     delay(20);
 }

@@ -6,6 +6,7 @@
 #ifdef BOARD_TDISPLAY_S3_AMOLED
   #include "clawd.h"
   #include "icons.h"
+  #include "fonts/draw_text.h"
 #endif
 
 // ── Colors (RGB565) ──────────────────────────────────────
@@ -32,8 +33,11 @@
 #define SX(n) ((n) * UI_SCALE)
 #define SY(n) ((n) * UI_SCALE)
 
-static uint16_t barColor(float) {
-    return C_TEXT;
+static uint16_t barColor(float pct) {
+    if (pct >= 90.0f) return C_CRIT;     // red — at the cap
+    if (pct >= 70.0f) return C_ACCENT;   // Claude orange
+    if (pct >= 40.0f) return C_WARN;     // yellow-orange
+    return C_OK;                          // green — plenty of headroom
 }
 
 static void drawBar(int x, int y, int w, int h, float pct, const char* label) {
@@ -212,6 +216,31 @@ void uiConnecting(const char* ssid, int attempt) {
 
 #ifdef BOARD_TDISPLAY_S3_AMOLED
 
+// Paint the freshness dot bottom-right of the right panel. Color and visibility
+// derive from how long since the last successful fetch — green <30s, yellow
+// 30-50s, red blinking at ~2Hz after that. Re-runnable; clears its own area.
+static void renderFreshnessDot(unsigned long lastFetchMs) {
+    const int DOT_X = SCREEN_W - 14;
+    const int DOT_Y = 222;
+    const int DOT_R = 5;
+
+    unsigned long age = (millis() - lastFetchMs) / 1000;
+    uint16_t dotColor;
+    bool     dotVisible;
+    if (age < 30) {
+        dotColor = C_OK;     dotVisible = true;
+    } else if (age < 50) {
+        dotColor = C_WARN;   dotVisible = true;
+    } else {
+        dotColor = C_CRIT;
+        dotVisible = ((millis() / 400) & 1) != 0;
+    }
+
+    spr.fillRect(DOT_X - DOT_R - 1, DOT_Y - DOT_R - 1,
+                 2 * DOT_R + 3, 2 * DOT_R + 3, C_BG);
+    if (dotVisible) spr.fillCircle(DOT_X, DOT_Y, DOT_R, dotColor);
+}
+
 // AMOLED layout: 240x240 Clawd canvas on the left, 296x240 data panel on the
 // right. Clawd auto-cycles animations within a usage-rate-driven group; data
 // panel is redrawn whenever new usage data arrives.
@@ -220,92 +249,51 @@ static void uiDashboardAmoled(const UsageData& data, unsigned long lastFetchMs,
     const int RX  = 240;
     const int RW  = SCREEN_W - RX;   // 296
 
+    (void)lastFetchMs;  // last-fetch age intentionally not displayed
+    (void)rssi;         // dBm intentionally not displayed
+
     halClear(C_BG);
 
-    // Title
-    lcd.setTextColor(C_HEAD, C_BG);
-    lcd.setTextSize(2);
-    lcd.setCursor(RX + 12, 10);
-    lcd.print("CLAUDE USAGE");
+    // Title — Tiempos 34
+    drawString(spr, RX + 12, 4, "CLAUDE USAGE", &font_tiempos_34, C_HEAD);
 
     if (!data.ok) {
-        lcd.setTextColor(C_CRIT, C_BG);
-        lcd.setTextSize(4);
-        lcd.setCursor(RX + 12, 60);
-        lcd.print("ERROR");
-        lcd.setTextColor(C_DIM, C_BG);
-        lcd.setTextSize(1);
-        lcd.setCursor(RX + 12, 110);
-        lcd.print(data.error);
-        lcd.setCursor(RX + 12, 130);
-        lcd.print("Tap to retry");
+        drawString(spr, RX + 12, 60, "ERROR", &font_styrene_48, C_CRIT);
+        drawString(spr, RX + 12, 120, data.error, &font_styrene_20, C_DIM);
+        drawString(spr, RX + 12, 144, "Tap to retry", &font_styrene_20, C_DIM);
     } else {
-        char buf[24];
+        char buf[16];
 
-        // 5-hour window
-        lcd.setTextColor(C_DIM, C_BG);
-        lcd.setTextSize(2);
-        lcd.setCursor(RX + 12, 44);
-        lcd.print("5H WINDOW");
+        // 5-hour window — label left, big % right, bar below
+        drawString(spr, RX + 12, 60, "5H WINDOW", &font_styrene_20, C_DIM);
         snprintf(buf, sizeof(buf), "%d%%", (int)data.h5);
-        int w = strlen(buf) * 6 * 5;
-        lcd.setTextColor(C_TEXT, C_BG);
-        lcd.setTextSize(5);
-        lcd.setCursor(RX + RW - 12 - w, 38);
-        lcd.print(buf);
+        int w = stringWidth(buf, &font_styrene_48);
+        drawString(spr, RX + RW - 12 - w, 48, buf, &font_styrene_48, C_TEXT);
 
-        lcd.fillRect(RX + 12, 84, RW - 24, 8, C_BAR_BG);
+        lcd.fillRect(RX + 12, 92, RW - 24, 10, C_BAR_BG);
         int fw = constrain((int)((RW - 24) * data.h5 / 100.0f), 0, RW - 24);
-        if (fw > 0) lcd.fillRect(RX + 12, 84, fw, 8, C_ACCENT);
-
-        char h5rst[16];
-        fmtCountdown(data.h5ResetEpoch, h5rst, sizeof(h5rst));
-        lcd.setTextColor(C_DIM, C_BG);
-        lcd.setTextSize(1);
-        lcd.setCursor(RX + 12, 98);
-        lcd.printf("reset %s", h5rst);
+        if (fw > 0) lcd.fillRect(RX + 12, 92, fw, 10, barColor(data.h5));
 
         // 7-day window
-        lcd.setTextColor(C_DIM, C_BG);
-        lcd.setTextSize(2);
-        lcd.setCursor(RX + 12, 128);
-        lcd.print("7D WINDOW");
+        drawString(spr, RX + 12, 132, "7D WINDOW", &font_styrene_20, C_DIM);
         snprintf(buf, sizeof(buf), "%d%%", (int)data.d7);
-        w = strlen(buf) * 6 * 5;
-        lcd.setTextColor(C_TEXT, C_BG);
-        lcd.setTextSize(5);
-        lcd.setCursor(RX + RW - 12 - w, 122);
-        lcd.print(buf);
+        w = stringWidth(buf, &font_styrene_48);
+        drawString(spr, RX + RW - 12 - w, 120, buf, &font_styrene_48, C_TEXT);
 
-        lcd.fillRect(RX + 12, 168, RW - 24, 8, C_BAR_BG);
+        lcd.fillRect(RX + 12, 164, RW - 24, 10, C_BAR_BG);
         fw = constrain((int)((RW - 24) * data.d7 / 100.0f), 0, RW - 24);
-        if (fw > 0) lcd.fillRect(RX + 12, 168, fw, 8, C_ACCENT);
+        if (fw > 0) lcd.fillRect(RX + 12, 164, fw, 10, barColor(data.d7));
 
-        char d7rst[16];
-        fmtCountdown(data.d7ResetEpoch, d7rst, sizeof(d7rst));
-        lcd.setTextColor(C_DIM, C_BG);
-        lcd.setTextSize(1);
-        lcd.setCursor(RX + 12, 182);
-        lcd.printf("reset %s", d7rst);
-
-        // Footer: battery icon + % + signal + last-fetch age
-        drawBatteryIcon24(spr, RX + 8, 208, batteryIcon(batPct, halIsCharging()));
-        lcd.setTextColor(C_DIM, C_BG);
-        lcd.setTextSize(2);
-        lcd.setCursor(RX + 36, 215);
-        lcd.printf("%d%%", batPct);
-
-        unsigned long ago = (millis() - lastFetchMs) / 1000;
-        lcd.setTextSize(1);
-        lcd.setCursor(RX + 110, 215);
-        lcd.printf("%ddBm", rssi);
-        lcd.setCursor(RX + 110, 228);
-        lcd.printf("%lus ago", ago);
+        // Footer: BAT % on the left; freshness dot is owned by uiDashboardAnim
+        // so it can pulse at sub-redraw rate when stale.
+        snprintf(buf, sizeof(buf), "BAT %d%%", batPct);
+        drawString(spr, RX + 12, 212, buf, &font_styrene_20, C_DIM);
     }
 
     // Clawd canvas: 20x20 cells at cell=12 → 240x240, top-left.
     clawd_draw(spr, 0, 0, 12);
 
+    renderFreshnessDot(lastFetchMs);
     halFlush();
 }
 
@@ -420,10 +408,24 @@ void uiLockout(int attempts, int maxAttempts, int lockoutSec) {
     }
 }
 
-void uiDashboardAnim() {
+void uiDashboardAnim(unsigned long lastFetchMs) {
 #ifdef BOARD_TDISPLAY_S3_AMOLED
-    if (!clawd_tick()) return;
-    clawd_draw(spr, 0, 0, 12);
+    bool clawdChanged = clawd_tick();
+
+    // In the red-pulse window we force a flush every 200ms so the dot blinks
+    // smoothly even between Clawd frame advances.
+    unsigned long age = (millis() - lastFetchMs) / 1000;
+    bool inPulse = (age >= 50);
+    static uint32_t lastFlushMs = 0;
+    bool pulseDue = inPulse && (millis() - lastFlushMs >= 200);
+
+    if (!clawdChanged && !pulseDue) return;
+
+    if (clawdChanged) clawd_draw(spr, 0, 0, 12);
+    renderFreshnessDot(lastFetchMs);
     halFlush();
+    lastFlushMs = millis();
+#else
+    (void)lastFetchMs;
 #endif
 }

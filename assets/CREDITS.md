@@ -25,8 +25,9 @@ parts directly ported from — Hermann Bjorgvin's **Clawdmeter** project.
   20-second auto-rotation cadence.
 
 ## Anthropic fonts
-- **Files:** TBD (planned: `data/fonts/StyreneB-*.vlw`, `data/fonts/TiemposText-*.vlw`)
-- **Source:** Anthropic-branded fonts (Styrene B Regular, Tiempos Text 400 Regular)
+- **Files:** [`src/fonts/font_styrene_20.c`](../src/fonts/font_styrene_20.c), [`src/fonts/font_styrene_48.c`](../src/fonts/font_styrene_48.c), [`src/fonts/font_tiempos_34.c`](../src/fonts/font_tiempos_34.c) — verbatim copies from Clawdmeter
+- **Source:** Anthropic-branded fonts (Styrene B Regular, Tiempos Text 400 Regular), rasterized at the listed sizes by `lv_font_conv` (LVGL's font tool) into 4-bit-per-pixel alpha glyph bitmaps. The Clawdmeter project produced the `.c` files; we reuse them as-is.
+- **Renderer:** [`src/fonts/draw_text.cpp`](../src/fonts/draw_text.cpp) + [`src/fonts/lvgl_font_compat.h`](../src/fonts/lvgl_font_compat.h) — a ~100-line shim provides just enough of LVGL's `lv_font_t` struct shape that the upstream `.c` files compile without pulling LVGL in, then a renderer walks the resulting data and alpha-blends each glyph onto the AMOLED sprite framebuffer.
 - **Note:** These fonts are Anthropic's property. They are included here on the
   authorization of the device owner. **The upstream maintainer of
   claude-usage-stick may need to remove them before merging** if a separate
