@@ -150,6 +150,12 @@ static void handleProvision() {
     String brightStr  = webServer.arg("brightness");
     String nameStr    = webServer.arg("device_name");
 
+#ifdef NO_USER_PIN
+    // Build opts out of the per-boot PIN: anything the user typed in the
+    // field is ignored. Token is still encrypted, with the default key.
+    pin = DEFAULT_NO_PIN_VALUE;
+#endif
+
     if (ssid.isEmpty() || token.isEmpty() || pin.length() < 4) {
         webServer.send(400, "text/plain", "Missing required fields.");
         return;

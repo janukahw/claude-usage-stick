@@ -74,6 +74,10 @@ pio run -e tdisplay-s3 -t uploadfs
 # — or — LilyGo T-Display S3 AMOLED 1.91" (H712/H713/H705/H681/H717)
 pio run -e tdisplay-s3-amoled -t upload
 pio run -e tdisplay-s3-amoled -t uploadfs
+
+# — or — same AMOLED board, no per-boot PIN entry (see Security below)
+pio run -e tdisplay-s3-amoled-nopin -t upload
+pio run -e tdisplay-s3-amoled-nopin -t uploadfs
 ```
 
 > **AMOLED note:** the panel variant is auto-detected at runtime by the LilyGo_AMOLED library, so a single `tdisplay-s3-amoled` build covers all 1.91" AMOLED revisions (touch and non-touch, V1.0/V2.0/Black Shell). On touch-equipped variants (H705/H681/H717), tapping the screen anywhere acts as Button B.
@@ -130,6 +134,10 @@ server/
 - The PIN is **never stored** — wrong PIN = failed decryption (GCM tag mismatch)
 - After 10 failed PIN attempts, all credentials are wiped and the device resets to setup mode
 - Lockout delay doubles after each failure (60s → 120s → 240s → ...)
+
+### Opting out of per-boot PIN entry
+
+The `-nopin` build variants (e.g. `tdisplay-s3-amoled-nopin`, or any env where you add `-DNO_USER_PIN=1` to `build_flags`) skip the PIN screen and decrypt the token with a hardcoded default. The token stays AES-encrypted in NVS, so an attacker who reads the flash blob still can't extract it without running the firmware. **However**, anyone who can read this repository can read the default value, so the practical threat model collapses to: *"don't lose the device."* Suitable for single-user home devices; not suitable if you ever leave the device unattended somewhere it might be flashed by someone else.
 
 ## License
 

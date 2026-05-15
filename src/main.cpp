@@ -141,6 +141,19 @@ void setup() {
 
     halSetBrightness(brightness);
 
+#ifdef NO_USER_PIN
+    // PIN entry compiled out — decrypt with the fixed default key. If this
+    // fails the NVS blob was encrypted with a different PIN (e.g. provisioned
+    // by a build that wasn't NO_USER_PIN), wipe and re-enter setup.
+    if (!decryptToken(blob, DEFAULT_NO_PIN_VALUE, token, sizeof(token))) {
+        uiError("PIN MISMATCH", "Wiping credentials...");
+        prefs.begin(NVS_NAMESPACE, false);
+        prefs.clear();
+        prefs.end();
+        delay(3000);
+        ESP.restart();
+    }
+#else
     uiBootProgress(60, "Enter PIN...");
     delay(300);
 
@@ -166,6 +179,7 @@ void setup() {
         if (lockSec > 3600) lockSec = 3600;
         uiLockout(attempts, MAX_PIN_ATTEMPTS, lockSec);
     }
+#endif
 
     uiBootProgress(80, "Connecting WiFi...");
 

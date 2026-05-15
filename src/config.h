@@ -10,6 +10,15 @@
 #define LOCKOUT_BASE_SEC        60       // doubles each failure
 #define KDF_ROUNDS              10000
 
+// Optional opt-out of the per-boot PIN entry — enable by defining
+// NO_USER_PIN=1 in platformio.ini build_flags. The token is still
+// AES-256-GCM-encrypted at rest, but with a key derived from this fixed
+// value rather than user input. Trade-off: anyone with physical access
+// can read the firmware to learn the default and decrypt the token.
+// Suitable only for single-user home devices where the threat model is
+// "don't lose the device" rather than "PIN must not be guessable".
+#define DEFAULT_NO_PIN_VALUE    "0000"
+
 // ── Display ──────────────────────────────────────────────
 #ifdef BOARD_TDISPLAY_S3
   #define SCREEN_W              320
